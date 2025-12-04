@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+import socket
+import json
+import os
+import sys
+import shutil
+
+# --- Configuration ---
+HOST = '127.0.0.1'  # Localhost
+PORT = 10042        # Default port for Competitive Companion
+TARGET_DIR = 'testcases'  # Folder to save test files
+template_file = "/home/anand/Templates/code-forces.cpp"
+# --- End Configuration ---
+
+
+def create_solution_template(name: str):
+    destination_file = f"{name}.cpp"
+    try:
+        shutil.copyfile(template_file, destination_file)
+        print(f"✅ Successfully copied {template_file} to {destination_file}")
+    except FileNotFoundError:
+        print(f"❌ Error: Template file '{template_file}' not found.")
+    except Exception as e:
+        print(f"❌ An error occurred during copy: {e}")
+
+
+def handle_problem_data(data):
+    """Parses the JSON and saves test cases to files."""
+    try:
+        problem = json.loads(data)
+    except json.JSONDecodeError:
+        print("Error: Could not decode JSON data.")
+        return
+
+    # Create the target directory if it doesn't exist
+    os.makedirs(TARGET_DIR, exist_ok=True)
+
+    print(f"\n--- Problem: {problem.get('name', 'N/A')} ({problem.get('group', 'N/A')}) ---")
+
+    test_cases = problem.get('tests', [])
+    if not test_cases:
+        print("No test cases found in the data.")
+        return
+
+    name = problem.get('name', 'N/A').replace(' ', '_')
+    for i, test in enumerate(test_cases, 1):
+        test_id = f"{i:02d}"  # Format as 01, 02, etc.
+        input_data = test.get('input', '')
+        output_data = test.get('output', '')
+
+        # Define file paths
+        # input_path = os.path.join(TARGET_DIR, f"sample_{test_id}.in")
+        input_path = os.path.join(TARGET_DIR, f"{name}_{test_id}.in")
+        # output_path = os.path.join(TARGET_DIR, f"sample_{test_id}.out")
+        output_path = os.path.join(TARGET_DIR, f"{name}_{test_id}.out")
+
+        # Save input file
+        with open(input_path, 'w', encoding='utf-8') as f:
+            f.write(input_data)
+
+        # Save output file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(output_data)
+
+        print(f"Saved Test Case {test_id}: {input_path} and {output_path}")
+
+    print("--------------------------------------------------")
+    create_solution_template(name)
+
+
+def start_listener():
+    """Starts the local TCP server to listen for Competitive Companion data."""
+    # AF_INET is address family for IPv4; SOCK_STREAM is the socket type for TCP
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            # Reuses the port if the server crashes, allowing immediate restart
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((HOST, PORT))
+            s.listen(1)  # Listen for a single connection
+            print(f"👂 Listening on {HOST}:{PORT} for Competitive Companion data...")
+            print("To stop, press Ctrl+C.")
+            
+            while True:
+                conn, addr = s.accept()
+                with conn:
+                    print(f"Connected by {addr}")
+                    # Receive all data from the companion
+                    data = b''
+                    while True:
+                        chunk = conn.recv(4096)
+                        if not chunk:
+                            break
+                        data += chunk
+                    
+                    # 1. Decode bytes to string
+                    data_str = data.decode('utf-8', errors='ignore')
+
+                    # 2. Find the start of the JSON payload
+                    # JSON data MUST start with a curly brace '{'
+                    json_start_index = data_str.find('{')
+                    
+                    if json_start_index != -1:
+                        # 3. Trim the string, keeping only the JSON part
+                        json_payload = data_str[json_start_index:]
+                        
+                        try:
+                            # 4. Attempt to parse the clean JSON payload
+                            handle_problem_data(json_payload)
+                        except json.JSONDecodeError:
+                            print("❌ Error: Could not decode JSON data, even after cleaning headers.")
+                            print("   Received Payload (First 200 chars):")
+                            print(json_payload[:200])
+                    else:
+                        print("❌ Error: Did not find the start of JSON ({) in the received data.")
+                        print("   Received Data (First 200 chars):")
+                        print(data_str[:200])
+
+        except KeyboardInterrupt:
+            print("\nListener stopped.")
+            sys.exit(0)
+        except Exception as e:
+            print(f"\nAn error occurred: {e}")
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    start_listener()

@@ -1,0 +1,78 @@
+#!/bin/bash
+# runsamples.sh - Automates C++ compilation and sample testing.
+# Usage: ./runsamples.sh <SourceFile.cpp>
+
+# --- Configuration ---
+SOURCE_FILE=${1:-solution.cpp} # Use first argument, default to solution.cpp
+
+FILENAME=$(basename "$SOURCE_FILE")
+BASE_NAME="${FILENAME%.cpp}"   # Result: solution
+
+EXECUTABLE=a.out
+TEST_DIR="testcases"
+# --- End Configuration ---
+
+# 1. Compile the C++ code
+echo "⚙️ Compiling ${SOURCE_FILE}..."
+
+# Use -std=c++17 or c++20, and common competitive programming flags
+g++ -std=c++17 -Wall -Wextra -O2 "${SOURCE_FILE}" -o "${EXECUTABLE}"
+
+# Check for compilation success
+if [ $? -ne 0 ]; then
+    echo "❌ Compilation failed. Exiting."
+    exit 1
+fi
+
+echo "✅ Compilation successful. Running tests..."
+echo "--------------------------------------------------"
+echo "Looking for tests matching: ${TEST_DIR}/${BASE_NAME}_*.in"
+echo "--------------------------------------------------"
+
+# 2. Find all sample input files (e.g., sample_01.in, test_1.in)
+# We use a loop to iterate through all files ending in .in
+
+# for INPUT_FILE in ${TEST_DIR}/${BASE_NAME}*.in; do
+for INPUT_FILE in "${TEST_DIR}/${BASE_NAME}"_*.in; do
+    # Check if a file was actually found (avoids running on "*.in" literal)
+    if [ ! -f "${INPUT_FILE}" ]; then
+        continue
+    fi
+    
+    # Derive the corresponding expected output file name (e.g., sample_01.out)
+    BASE_NAME=$(basename "${INPUT_FILE}" .in)
+    EXPECTED_OUTPUT_FILE="${TEST_DIR}/${BASE_NAME}.out"
+    
+    # Create a temporary file for the actual output
+    ACTUAL_OUTPUT_FILE="${TEST_DIR}/${BASE_NAME}.actual"
+
+    echo "▶️ Running Test: ${BASE_NAME}..."
+
+    # Run the compiled executable, piping the input file into it
+    # and redirecting the output to a temporary file.
+    ./"${EXECUTABLE}" < "${INPUT_FILE}" > "${ACTUAL_OUTPUT_FILE}"
+
+    # 3. Compare the Actual Output with the Expected Output
+    if [ -f "${EXPECTED_OUTPUT_FILE}" ]; then
+        # Use 'diff' to compare the files. '-q' means quiet, only reports if files differ.
+        if diff -q "${ACTUAL_OUTPUT_FILE}" "${EXPECTED_OUTPUT_FILE}" > /dev/null; then
+            echo "   [PASSED] ✅"
+        else
+            echo "   [FAILED] ❌ Output mismatch! See files for diff:"
+            echo "     - Input: ${INPUT_FILE}"
+            echo "     - Expected: ${EXPECTED_OUTPUT_FILE}"
+            echo "     - Actual: ${ACTUAL_OUTPUT_FILE}"
+            # Optionally show the full diff
+            diff "${EXPECTED_OUTPUT_FILE}" "${ACTUAL_OUTPUT_FILE}"
+        fi
+    else
+        echo "   [NOTE] ⚠️ No expected output file (${EXPECTED_OUTPUT_FILE}) found. Skipping comparison."
+    fi
+    
+    # Clean up the actual output file for a clean directory
+    rm "${ACTUAL_OUTPUT_FILE}"
+
+done
+
+echo "--------------------------------------------------"
+echo "Done."
