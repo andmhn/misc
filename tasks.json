@@ -1,0 +1,42 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "watcher *.c -- ./build.sh",
+            "group": { "kind": "build", "isDefault": true },
+            // "problemMatcher": ["$go"],
+
+
+            "isBackground": true,
+            // "problemMatcher": {
+            //     "pattern": "$go",
+            //     "background": {
+            //         "activeOnStart": true,
+            //         "beginsPattern": "^watching in",
+            //         "endsPattern": "^-+$"
+            //     }
+            // }
+            "problemMatcher": {
+                "owner": "custom-c-watcher",
+                "fileLocation": "autoDetect",
+                "pattern": {
+                    "regexp": "^(.*?):(\\d+):(\\d+):\\s+(fatal error|error|warning|note):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^watching in",
+                    // "endsPattern": "^-+\\s+(exited|killed).*-+$",
+                    "endsPattern": "^--------- +(exited|killed).* ---------$",
+                }
+            }
+
+        }
+    ]
+}
